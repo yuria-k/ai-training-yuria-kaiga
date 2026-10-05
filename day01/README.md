@@ -140,11 +140,13 @@ argparse:Pythonのスクリプトに渡すコマンドライン引数を解析�
 
 
 - ログ（INFO/ERRORの使い分け）
+
 ・INFO：後から読んで何が起きたかわかるための記録
 処理開始・終了/節目の出来事/外部との通信結果/状態の変化
 開始と終了をセットで残すのが基本形
 
 ・5つのログレベル
+
 DEBUG：10：開発中の詳細な記録
 INFO：20：正常に進んだことの記録
 WARNING：30：問題の予兆
@@ -155,23 +157,30 @@ CRITICAL：50：システムが続行できない
 実行後に　$LASTEXITCODE
 
 - GitHub：ブランチ作成→PR→修正push
+
 ・main 最新化
+
 git checkout main
 git pull origin main
 
 ・ブランチ作成
+
 git checkout -b feature/add-greeting
 
 ・修正後
+
 git add .
 git commit -m "挨拶機能追加"
 
 ・初回push
+
 git push -u origin feature/add-greeting
 
 ・レビュー指摘後
+
 git add .
 git commit -m "レビュー指摘対応"
 
 ・再push
+
 git push
