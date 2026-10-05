@@ -155,4 +155,3 @@ CRITICAL：50：システムが続行できない
 実行後に　$LASTEXITCODE
 
 - GitHub：ブランチ作成→PR→修正push
-
