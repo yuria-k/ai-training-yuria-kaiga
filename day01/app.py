@@ -29,7 +29,7 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 def run(name: str, repeat: int, fmt: str) -> str:
     """課題ロジック本体です（Day01は完成形の見本として実装済み）。"""
-    outputs: List[str] = [f"Hello, {name}" for _ in range(repeat)]
+    outputs: List[str] = [f"Hello! {name}" for _ in range(repeat)]
     if fmt == "json":
         return json.dumps({"name": name, "repeat": repeat, "outputs": outputs}, ensure_ascii=False)
     return "\n".join(outputs)
