@@ -155,3 +155,23 @@ CRITICAL：50：システムが続行できない
 実行後に　$LASTEXITCODE
 
 - GitHub：ブランチ作成→PR→修正push
+# main 最新化
+git checkout main
+git pull origin main
+
+# ブランチ作成
+git checkout -b feature/add-greeting
+
+# 修正後
+git add .
+git commit -m "挨拶機能追加"
+
+# 初回push
+git push -u origin feature/add-greeting
+
+# レビュー指摘後
+git add .
+git commit -m "レビュー指摘対応"
+
+# 再push
+git push
