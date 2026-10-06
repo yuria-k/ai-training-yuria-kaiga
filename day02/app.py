@@ -7,6 +7,16 @@ import sys
 from typing import List, Optional
 
 from dotenv import load_dotenv
+import json
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import (
+    NoCredentialsError,
+    ClientError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,23 +52,68 @@ def invoke_bedrock(
     max_tokens: int,
     timeout_sec: int,
 ) -> str:
-    """Bedrockを呼び出して回答本文（文字列）を返します。
+    """Bedrockを呼び出して回答本文（文字列）を返します。"""
 
-    この関数を実装すると、`python -m day02.app ...` が動くようになります。
+    try:
+        config = Config(
+            connect_timeout=timeout_sec,
+            read_timeout=timeout_sec,
+            retries={"max_attempts": 1},
+        )
 
-    実装ガイド：
-    - boto3のBedrock Runtimeクライアントを作る（リージョンは `region` を使う）
-    - `model_id` で指定されたモデルを呼び出す
-    - `temperature` / `max_tokens` をリクエストに反映する
-    - `timeout_sec` はHTTPクライアント設定やタイムアウト制御に反映する
-    - 返すのは「回答本文のみ」（前後に装飾文を混ぜない）
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=config,
+        )
 
-    エラー時：
-    - 認証/権限/ネットワーク/タイムアウトなどは例外として投げてOK
-     （main側で終了コード=1にしてstderrへ出ます）
-    """
-    # TODO(TRAINEE): Implement Bedrock invocation and return the assistant text only.
-    raise NotImplementedError("Implement Bedrock invocation")
+        request_body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        }
+
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+
+        response_body = json.loads(
+            response["body"].read().decode("utf-8")
+        )
+
+        return response_body["content"][0]["text"]
+
+    except NoCredentialsError as e:
+        raise RuntimeError(
+            "AWS認証情報が見つかりません。AWS_PROFILEや credentials を確認してください。"
+        ) from e
+
+    except (ConnectTimeoutError, ReadTimeoutError) as e:
+        raise RuntimeError(
+            f"Bedrock接続がタイムアウトしました。timeout-sec={timeout_sec} を確認してください。"
+        ) from e
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code in (
+            "AccessDeniedException",
+            "UnauthorizedOperation",
+        ):
+            raise RuntimeError(
+                f"AWS権限エラーです。IAM権限を確認してください。({error_code})"
+            ) from e
+
+        raise RuntimeError(
+            f"AWSエラーが発生しました。({error_code}){e}"
+        ) from e
 
 
 def main(argv: List[str] | None = None) -> int:
