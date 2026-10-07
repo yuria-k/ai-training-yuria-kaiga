@@ -5,6 +5,18 @@ import json
 import logging
 import sys
 from typing import Any, Dict, List
+import os
+
+from dotenv import load_dotenv
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import (
+    NoCredentialsError,
+    ClientError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,22 +36,106 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 
 def generate_json(requirements: str) -> str:
-    """要件文字列から、JSON文字列（本文のみ）を生成して返します。
+    region = os.getenv("AWS_REGION")
 
-    この関数を実装すると、`python -m day03.app --requirements ...` が動くようになります。
+    model_id = os.getenv(
+        "BEDROCK_MODEL_ID",
+        "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    )
 
-    実装ガイド：
-    - LLMに「JSONだけを返す」ように強く指示する
-    - `title` / `tasks` / `risks` を必ず含める
-    - `tasks` は配列で、各要素に `id` / `description` / `acceptance_criteria` を含める
-    - 返す文字列は JSON として `json.loads()` できる必要がある
+    if not region:
+        raise RuntimeError(
+            "AWS_REGION is not set"
+        )
 
-    注意：
-    - 余計な前置き/後置きの文章を混ぜない
-    - 壊れやすいので、プロンプトは短く・形式を固定する
-    """
-    # TODO(TRAINEE): Generate a JSON string that passes validate_json().
-    raise NotImplementedError("Implement JSON generation")
+    prompt = f"""
+あなたはシステム分析アシスタントです。
+
+以下の要件を分析してください。
+
+要件:
+{requirements}
+
+次のJSON形式のみ出力してください。
+
+{{
+  "title": "要件のタイトル",
+  "tasks": [
+    {{
+      "id": 1,
+      "description": "作業内容",
+      "acceptance_criteria": "完了条件"
+    }}
+  ],
+  "risks": [
+    "リスク"
+  ]
+}}
+
+ルール:
+- JSON以外を出力しない
+- markdownを使わない
+- 説明文を書かない
+- title を必ず含める
+- tasks を必ず含める
+- risks を必ず含める
+"""
+
+    try:
+        config = Config(
+            connect_timeout=30,
+            read_timeout=30,
+            retries={"max_attempts": 1},
+        )
+
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=config,
+        )
+
+        request_body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "temperature": 0.2,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        }
+
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+
+        response_body = json.loads(
+            response["body"].read().decode("utf-8")
+        )
+
+        return response_body["content"][0]["text"].strip()
+
+    except NoCredentialsError as e:
+        raise RuntimeError(
+            "AWS認証情報が見つかりません"
+        ) from e
+
+    except (
+        ConnectTimeoutError,
+        ReadTimeoutError,
+    ) as e:
+        raise RuntimeError(
+            "Bedrock接続タイムアウト"
+        ) from e
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        raise RuntimeError(
+            f"AWSエラー ({error_code})"
+        ) from e
 
 
 def validate_json(text: str) -> Dict[str, Any]:
@@ -54,6 +150,8 @@ def validate_json(text: str) -> Dict[str, Any]:
 
 
 def main(argv: List[str] | None = None) -> int:
+    load_dotenv()
+
     """CLIのエントリポイントです。
 
     JSON生成→検証→（失敗時は再生成）までを制御します。受講者は `generate_json()` を実装します。
