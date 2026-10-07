@@ -4,6 +4,13 @@ import argparse
 import logging
 import sys
 from typing import List
+import os
+from datetime import date
+
+from dotenv import load_dotenv
+from langchain.tools import tool
+from langchain_aws import ChatBedrock
+from langchain_core.messages import HumanMessage
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,21 +27,44 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 
 def run_chain(text: str) -> str:
-    """LangChain + Tool calling を使って回答（文字列）を返します。
+    load_dotenv()
 
-    この関数を実装すると、`python -m day04.app --text ...` が動くようになります。
+    @tool
+    def today() -> str:
+        """今日の日付を返します"""
 
-    要件（READMEの受け入れ基準）：
-    - `today` または `add` のツールを1つ実装し、LLMから1回以上呼び出す
-    - ツール引数のバリデーションを入れる（不正なら実行しない）
-    - ツール失敗時は安全に失敗する（例外でOK。mainがexit code=1にする）
+        logging.info("tool:today called")
 
-    ヒント：
-    - まずはツールをPython関数として作り、ログで「呼ばれた」ことを確認
-    - 次にLLM側のプロンプトで「必要ならツールを使う」よう誘導
-    """
-    # TODO(TRAINEE): Implement LangChain pipeline and tool calling.
-    raise NotImplementedError("Implement LangChain + Tool calling")
+        return date.today().strftime("%Y-%m-%d")
+
+    region = os.getenv("AWS_REGION")
+
+    model_id = os.getenv(
+        "BEDROCK_MODEL_ID",
+        "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+    )
+
+    if not region:
+        raise RuntimeError("AWS_REGION is not set")
+
+    llm = ChatBedrock(
+        model_id=model_id,
+        region_name=region,
+    )
+
+    llm_with_tools = llm.bind_tools([today])
+
+    response = llm_with_tools.invoke(
+        [HumanMessage(content=text)]
+    )
+
+    if response.tool_calls:
+
+        tool_result = today.invoke({})
+
+        return f"今日は{tool_result}です。"
+
+    return response.content
 
 
 def main(argv: List[str] | None = None) -> int:
