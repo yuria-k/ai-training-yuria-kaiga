@@ -30,12 +30,18 @@ def run_chain(text: str) -> str:
     load_dotenv()
 
     @tool
-    def today() -> str:
-        """今日の日付を返します"""
+    def add(a: int, b: int) -> int:
+        """2つの整数を足します"""
+        if not isinstance(a, int):
+            raise ValueError("a must be int")
+        
+        if not isinstance(b, int):
+            raise ValueError("b must be int")
 
-        logging.info("tool:today called")
-
-        return date.today().strftime("%Y-%m-%d")
+        logging.info(
+            f"tool:add called a={a} b={b}"
+        )
+        return a + b
 
     region = os.getenv("AWS_REGION")
 
@@ -52,17 +58,21 @@ def run_chain(text: str) -> str:
         region_name=region,
     )
 
-    llm_with_tools = llm.bind_tools([today])
+    llm_with_tools = llm.bind_tools([add])
 
     response = llm_with_tools.invoke(
-        [HumanMessage(content=text)]
+        [HumanMessage(content=f"""ユーザーの質問です。 {text} 足し算が必要な場合はaddツールを使ってください。""")]
     )
 
     if response.tool_calls:
 
-        tool_result = today.invoke({})
+        tool_call = response.tool_calls[0]
 
-        return f"今日は{tool_result}です。"
+        tool_result = add.invoke(
+            tool_call["args"]
+    )
+
+        return f"計算結果は{tool_result}です。"
 
     return response.content
 
