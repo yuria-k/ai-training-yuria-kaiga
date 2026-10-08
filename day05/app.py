@@ -20,23 +20,49 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 
 def answer_with_rag(question: str) -> str:
-    """RAGで質問に回答し、指定フォーマットのテキストを返します。
+    from pathlib import Path
 
-    この関数を実装すると、`python -m day05.app --question ...` が動くようになります。
+    data_dir = Path(__file__).parent / "data"
 
-    要件（READMEの出力フォーマット）：
-    - 標準出力に次の形で出すための文字列を返す
-      1) `Answer:` 行
-      2) `Sources:` 行
-      3) `- <URL or ファイル名> (excerpt: "...")` を最低1件（ヒットなしなら `- (none)`）
+    if not data_dir.exists():
+        raise FileNotFoundError("day05/data が存在しません")
 
-    実装ガイド：
-    - `day05/data/` 配下の `.txt` を読み込み、検索対象とする
-    - 最初は単純なキーワード検索でもOK（高品質でなくてよい）
-    - ヒットがない場合の挙動を必ず実装する
-    """
-    # TODO(TRAINEE): Implement retrieval from day05/data and return Answer/Sources formatted text.
-    raise NotImplementedError("Implement RAG")
+    keyword = (
+        question.replace("について教えて", "")
+        .replace("とは", "")
+        .strip()
+    )
+
+    sources = []
+
+    for file in data_dir.glob("*.txt"):
+        text = file.read_text(encoding="utf-8")
+
+        if keyword.lower() in text.lower():
+            excerpt = text[:100].replace("\n", " ")
+
+            sources.append(
+                f'- {file.name} (excerpt: "{excerpt}")'
+            )
+
+    if not sources:
+        return (
+            "Answer: 該当する根拠が見つかりません。\n\n"
+            "Sources:\n"
+            "- (none)"
+        )
+
+    answer = (
+        sources[0]
+        .split('excerpt: "')[1]
+        .rstrip('")')
+    )
+
+    return (
+        f"Answer: {answer}\n\n"
+        "Sources:\n"
+        + "\n".join(sources)
+    )
 
 
 def main(argv: List[str] | None = None) -> int:
