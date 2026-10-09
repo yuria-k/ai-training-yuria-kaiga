@@ -26,17 +26,65 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 
 def run_graph(*, text: str, max_steps: int, max_retry: int) -> str:
-    """失敗時復帰（リトライ/フォールバック）付きのフローを実行します。
+    """リトライ/フォールバック付きフロー"""
 
-    実装ガイド：
-    - 失敗パターンを1つ以上作り、復帰パスへ入ることを確認する
-      - 例：JSONが壊れる→再生成
-      - 例：検索ヒットなし→聞き返し
-    - `max_steps` / `max_retry` を上限として必ず反映し、無限ループを防ぐ
-    - 上限到達時は明示的に失敗（例外）してよい（mainがexit code=1にする）
-    """
-    # TODO(TRAINEE): Add retry/fallback logic and enforce max_steps/max_retry.
-    raise NotImplementedError("Implement retry/fallback flow")
+    step_count = 0
+    retry_count = 0
+
+    while True:
+        step_count += 1
+
+        if step_count > max_steps:
+            raise RuntimeError(
+                f"max_steps ({max_steps}) reached. Aborting to avoid infinite loop."
+            )
+
+        try:
+            # ---------------------------------
+            # 失敗ケースを意図的に再現
+            # ---------------------------------
+            if "不完全なJSON" in text:
+                response = '{"answer": "テスト"'  # JSON破損
+            else:
+                response = '{"answer": "正常に処理できました"}'
+
+            import json
+
+            data = json.loads(response)
+
+            return data["answer"]
+
+        except Exception as e:
+            logging.warning(
+                "step=%s retry=%s parse failed: %s",
+                step_count,
+                retry_count,
+                e,
+            )
+
+            retry_count += 1
+
+            # -----------------------------
+            # リトライ
+            # -----------------------------
+            if retry_count <= max_retry:
+                logging.info(
+                    "retrying... (%s/%s)",
+                    retry_count,
+                    max_retry,
+                )
+
+                # 再生成した想定
+                text = text.replace("不完全なJSON", "")
+                continue
+
+            # -----------------------------
+            # フォールバック
+            # -----------------------------
+            return (
+                f"フォールバック応答: "
+                f"最大リトライ回数({max_retry})に到達したため通常処理を中断しました。"
+            )
 
 
 def main(argv: List[str] | None = None) -> int:
